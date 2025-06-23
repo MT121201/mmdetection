@@ -20,7 +20,7 @@ param_scheduler = [
 ]
 
 dataset_type = 'CocoDataset'
-data_root = '/home/a3ilab01/treeai/det_tree/34_RGB_ObjDet_640_pL/'  
+data_root = '/home/a3ilab01/treeai/dataset/34_RGB_ObjDet_640_pL/'  
 
 classes = (
     'cls_3', 'cls_5', 'cls_6', 'cls_9', 'cls_11', 'cls_12', 'cls_13',
@@ -70,8 +70,8 @@ train_dataloader = dict(
         times=2,
         dataset=dict(
             type='CocoDataset',
-            data_root='/home/a3ilab01/treeai/det_tree/34_RGB_ObjDet_640_pL',
-            ann_file='/home/a3ilab01/treeai/det_tree/34_RGB_ObjDet_640_pL/annotations/train.json',
+            data_root='/home/a3ilab01/treeai/dataset/34_RGB_ObjDet_640_pL',
+            ann_file='/home/a3ilab01/treeai/dataset/34_RGB_ObjDet_640_pL/annotations/train.json',
             data_prefix=dict(img='images/train/'),
             metainfo=dict(classes=classes),
             pipeline=train_pipeline
@@ -88,8 +88,8 @@ val_dataloader = dict(
     batch_size=2,
     dataset=dict(
         type='CocoDataset',
-        data_root='/home/a3ilab01/treeai/det_tree/34_RGB_ObjDet_640_pL',
-        ann_file='/home/a3ilab01/treeai/det_tree/34_RGB_ObjDet_640_pL/annotations/val.json',
+        data_root='/home/a3ilab01/treeai/dataset/34_RGB_ObjDet_640_pL',
+        ann_file='/home/a3ilab01/treeai/dataset/34_RGB_ObjDet_640_pL/annotations/val.json',
         data_prefix=dict(img='images/val/'),
         metainfo=dict(classes=classes),
         pipeline=test_pipeline,
