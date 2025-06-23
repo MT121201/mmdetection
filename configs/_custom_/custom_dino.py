@@ -67,7 +67,7 @@ train_dataloader = dict(
     batch_size=2,
     dataset=dict(
         type='RepeatDataset',
-        times=3,
+        times=1,
         dataset=dict(
             type='CocoDataset',
             data_root='/home/a3ilab01/treeai/det_tree/34_RGB_ObjDet_640_pL/',
@@ -114,6 +114,18 @@ val_evaluator = dict(
 )
 
 default_hooks = dict(
-    checkpoint=dict(type='CheckpointHook', interval=1, max_keep_ckpts=3),
+    checkpoint=dict(
+    type='CheckpointHook',
+    interval=1,
+    max_keep_ckpts=3,
+    save_best='coco/bbox_mAP',  
+    rule='greater'              # higher mAP is better
+),
     logger=dict(type='LoggerHook', interval=50)
+)
+
+visualizer = dict(
+    type='DetLocalVisualizer',
+    vis_backends=[dict(type='LocalVisBackend')],
+    name='visualizer'
 )
