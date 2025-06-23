@@ -6,6 +6,7 @@ train_cfg = dict(
     max_epochs=max_epochs,
     val_interval=1
 )
+load_from = '/home/a3ilab01/treeai/det_tree/34a_best.pth'
 
 
 param_scheduler = [
@@ -24,11 +25,11 @@ data_root = '/home/a3ilab01/treeai/dataset/34_RGB_ObjDet_640_pL_b/'
 
 classes = (
     'cls_3', 'cls_5', 'cls_6', 'cls_9', 'cls_11', 'cls_12', 'cls_13',
-    'cls_15', 'cls_17', 'cls_20', 'cls_24', 'cls_25', 'cls_26', 'cls_30',
-    'cls_35', 'cls_36', 'cls_40', 'cls_48', 'cls_49', 'cls_50', 'cls_51',
-    'cls_52', 'cls_53', 'cls_54', 'cls_56', 'cls_57', 'cls_58', 'cls_59',
-    'cls_60', 'cls_61'
+    'cls_24', 'cls_25', 'cls_26', 'cls_30', 'cls_36', 'cls_37',
+    'cls_43', 'cls_48', 'cls_50', 'cls_53', 'cls_56', 'cls_58',
+    'cls_59', 'cls_60'
 )
+
 metainfo=dict(classes=classes)
 model = dict(
     bbox_head=dict(
@@ -37,10 +38,15 @@ model = dict(
 )
 
 train_pipeline = [
-    dict(type='LoadImageFromFile'),
-    dict(type='LoadAnnotations', with_bbox=True),
+    dict(
+        type='MixUp',
+        img_scale=(800, 800),
+        ratio_range=(0.8, 1.2),
+        pad_val=114.0
+    ),
     dict(type='RandomFlip', prob=0.5),
     dict(type='PhotoMetricDistortion'),
+    dict(type='LoadAnnotations', with_bbox=True),
     dict(type='PackDetInputs')
 ]
 
@@ -67,13 +73,24 @@ train_dataloader = dict(
     batch_size=2,
     dataset=dict(
         type='RepeatDataset',
-        times=2,
+        times=3,
         dataset=dict(
-            type='CocoDataset',
-            data_root='/home/a3ilab01/treeai/dataset/34_RGB_ObjDet_640_pL_b',
-            ann_file='/home/a3ilab01/treeai/dataset/34_RGB_ObjDet_640_pL_b/annotations/train.json',
-            data_prefix=dict(img='images/train/'),
-            metainfo=dict(classes=classes),
+            type='MultiImageMixDataset',
+            dataset=dict(
+                type='ClassBalancedDataset',
+                oversample_thr=1e-3,
+                dataset=dict(
+                    type='CocoDataset',
+                    data_root='/home/a3ilab01/treeai/dataset/34_RGB_ObjDet_640_pL_b',
+                    ann_file='annotations/train.json',
+                    data_prefix=dict(img='images/train/'),
+                    metainfo=dict(classes=classes),
+                    pipeline=[
+                        dict(type='LoadImageFromFile'),
+                        dict(type='LoadAnnotations', with_bbox=True)
+                    ]
+                )
+            ),
             pipeline=train_pipeline
         )
     ),
@@ -82,6 +99,7 @@ train_dataloader = dict(
     num_workers=2,
     persistent_workers=True
 )
+
 
 val_dataloader = dict(
     _delete_=True,
