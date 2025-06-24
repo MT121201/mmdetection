@@ -1,4 +1,4 @@
-_base_ = '../dino/dino-5scale_swin-l_8xb2-12e_coco.py'
+_base_ = '/home/a3ilab01/treeai/mmdetection/work_dirs/dino_34b/best_coco_bbox_mAP_50_epoch_20.pth'
 
 max_epochs = 36
 train_cfg = dict(
@@ -6,8 +6,6 @@ train_cfg = dict(
     max_epochs=max_epochs,
     val_interval=1
 )
-load_from = '/home/a3ilab01/treeai/det_tree/34a_best.pth'
-
 
 param_scheduler = [
     dict(
@@ -21,16 +19,11 @@ param_scheduler = [
 ]
 
 dataset_type = 'CocoDataset'
-data_root = '/home/a3ilab01/treeai/dataset/34_RGB_ObjDet_640_pL_b/'  
+data_root = '/home/a3ilab01/treeai/dataset/'
 
-classes = (
-    'cls_3', 'cls_5', 'cls_6', 'cls_9', 'cls_11', 'cls_12', 'cls_13',
-    'cls_24', 'cls_25', 'cls_26', 'cls_30', 'cls_36', 'cls_37',
-    'cls_43', 'cls_48', 'cls_50', 'cls_53', 'cls_56', 'cls_58',
-    'cls_59', 'cls_60'
-)
+classes = tuple(f'cls_{i}' for i in range(1, 62))
+metainfo = dict(classes=classes)
 
-metainfo=dict(classes=classes)
 model = dict(
     bbox_head=dict(
         num_classes=len(classes)
@@ -40,34 +33,41 @@ model = dict(
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations', with_bbox=True),
-    dict(
-        type='MixUp',
-        img_scale=(800, 800),
-        ratio_range=(0.8, 1.2),
-        pad_val=114.0
-    ),
     dict(type='RandomFlip', prob=0.5),
     dict(type='PhotoMetricDistortion'),
-    dict(type='PackDetInputs'),
+    dict(type='Resize', scale=(640, 640), keep_ratio=True),
+    dict(type='PackDetInputs')
 ]
 
 
 test_pipeline = [
     dict(backend_args=None, type='LoadImageFromFile'),
-    dict(keep_ratio=True, scale=(
-        1333,
-        800,
-    ), type='Resize'),
+    dict(keep_ratio=True, scale=(1333, 800), type='Resize'),
     dict(type='LoadAnnotations', with_bbox=True),
     dict(
         meta_keys=(
-            'img_id',
-            'img_path',
-            'ori_shape',
-            'img_shape',
-            'scale_factor',
+            'img_id', 'img_path', 'ori_shape', 'img_shape', 'scale_factor',
         ),
-        type='PackDetInputs'),
+        type='PackDetInputs'
+    ),
+]
+
+datasets = [
+    dict(
+        type='CocoDataset',
+        data_root=f'{data_root}{subdir}/',
+        ann_file='annotations/train.json',
+        data_prefix=dict(img='images/train/'),
+        metainfo=metainfo,
+        pipeline=train_pipeline
+    )
+    for subdir in [
+        '12_RGB_ObjDet_640_fL',
+        '5_RGB_S_320_pL',
+        '34_RGB_ObjDet_640_pLa',
+        '34_RGB_ObjDet_640_pLb',
+        '0_RGB_fL/coco'  # assuming already filtered and remapped
+    ]
 ]
 
 train_dataloader = dict(
@@ -75,25 +75,14 @@ train_dataloader = dict(
     batch_size=2,
     dataset=dict(
         type='RepeatDataset',
-        times=3,
+        times=2,
         dataset=dict(
-            type='MultiImageMixDataset',
+            type='ClassBalancedDataset',
+            oversample_thr=1e-2,
             dataset=dict(
-                type='ClassBalancedDataset',
-                oversample_thr=1e-3,
-                dataset=dict(
-                    type='CocoDataset',
-                    data_root='/home/a3ilab01/treeai/dataset/34_RGB_ObjDet_640_pL_b',
-                    ann_file='annotations/train.json',
-                    data_prefix=dict(img='images/train/'),
-                    metainfo=dict(classes=classes),
-                    pipeline=[
-                        dict(type='LoadImageFromFile'),
-                        dict(type='LoadAnnotations', with_bbox=True)
-                    ]
-                )
-            ),
-            pipeline=train_pipeline
+                type='ConcatDataset',
+                datasets=datasets
+            )
         )
     ),
     sampler=dict(type='DefaultSampler', shuffle=True),
@@ -102,16 +91,15 @@ train_dataloader = dict(
     persistent_workers=True
 )
 
-
 val_dataloader = dict(
     _delete_=True,
     batch_size=2,
     dataset=dict(
         type='CocoDataset',
-        data_root='/home/a3ilab01/treeai/dataset/34_RGB_ObjDet_640_pL_b',
-        ann_file='/home/a3ilab01/treeai/dataset/34_RGB_ObjDet_640_pL_b/annotations/val.json',
+        data_root=f'{data_root}12_RGB_ObjDet_640_fL/',
+        ann_file='annotations/val.json',
         data_prefix=dict(img='images/val/'),
-        metainfo=dict(classes=classes),
+        metainfo=metainfo,
         pipeline=test_pipeline,
         test_mode=True
     ),
@@ -122,13 +110,13 @@ val_dataloader = dict(
 test_dataloader = val_dataloader
 
 test_evaluator = dict(
-    ann_file=data_root + 'annotations/val.json',
+    ann_file=f'{data_root}12_RGB_ObjDet_640_fL/annotations/val.json',
     metric='bbox',
     type='CocoMetric'
 )
 
 val_evaluator = dict(
-    ann_file=data_root + 'annotations/val.json',
+    ann_file=f'{data_root}12_RGB_ObjDet_640_fL/annotations/val.json',
     metric='bbox',
     type='CocoMetric'
 )
@@ -144,7 +132,7 @@ default_hooks = dict(
         type='CheckpointHook',
         interval=1,
         max_keep_ckpts=3,
-        save_best='coco/bbox_mAP_50',  # <- USE mAP@50
+        save_best='coco/bbox_mAP_50',
         rule='greater'
     ),
     logger=dict(type='LoggerHook', interval=50)
@@ -153,7 +141,7 @@ default_hooks = dict(
 custom_hooks = [
     dict(
         type='EarlyStoppingHook',
-        monitor='coco/bbox_mAP_50',  # <- USE mAP@50
+        monitor='coco/bbox_mAP_50',
         rule='greater',
         patience=5,
         min_delta=0.001,
