@@ -38,6 +38,8 @@ model = dict(
 )
 
 train_pipeline = [
+    dict(type='LoadImageFromFile'),
+    dict(type='LoadAnnotations', with_bbox=True),
     dict(
         type='MixUp',
         img_scale=(800, 800),
@@ -46,12 +48,8 @@ train_pipeline = [
     ),
     dict(type='RandomFlip', prob=0.5),
     dict(type='PhotoMetricDistortion'),
-    dict(type='LoadAnnotations', with_bbox=True),
-    dict(type='PackDetInputs')
+    dict(type='PackDetInputs'),
 ]
-
-
-
 
 test_pipeline = [
     dict(backend_args=None, type='LoadImageFromFile'),
