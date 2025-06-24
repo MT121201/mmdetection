@@ -38,17 +38,18 @@ model = dict(
 )
 
 train_pipeline = [
-    dict(type='LoadImageFromFile'),
-    dict(type='LoadAnnotations', with_bbox=True),
     dict(
-    type='CutOut',
-    n_holes=(5, 10),
-    cutout_ratio=[(0.1, 0.1), (0.2, 0.2)]
-),
+        type='MixUp',
+        img_scale=(800, 800),
+        ratio_range=(0.8, 1.2),
+        pad_val=114.0
+    ),
     dict(type='RandomFlip', prob=0.5),
     dict(type='PhotoMetricDistortion'),
+    dict(type='LoadAnnotations', with_bbox=True),
     dict(type='PackDetInputs')
 ]
+
 
 
 
@@ -75,18 +76,25 @@ train_dataloader = dict(
     batch_size=2,
     dataset=dict(
         type='RepeatDataset',
-        times=2,  # Repeat the dataset twice per epoch
+        times=2,
         dataset=dict(
-            type='ClassBalancedDataset',
-            oversample_thr=1e-3,  # You can try 1e-2 if some classes are very rare
+            type='MultiImageMixDataset',
             dataset=dict(
-                type='CocoDataset',
-                data_root='/home/a3ilab01/treeai/dataset/12_RGB_ObjDet_640_fL',
-                ann_file='annotations/train.json',
-                data_prefix=dict(img='images/train/'),
-                metainfo=dict(classes=classes),
-                pipeline=train_pipeline  # <- no MixUp, just standard augmentations
-            )
+                type='ClassBalancedDataset',
+                oversample_thr=1e-3,
+                dataset=dict(
+                    type='CocoDataset',
+                    data_root='/home/a3ilab01/treeai/dataset/12_RGB_ObjDet_640_fL',
+                    ann_file='annotations/train.json',
+                    data_prefix=dict(img='images/train/'),
+                    metainfo=dict(classes=classes),
+                    pipeline=[
+                        dict(type='LoadImageFromFile'),
+                        dict(type='LoadAnnotations', with_bbox=True)
+                    ]
+                )
+            ),
+            pipeline=train_pipeline
         )
     ),
     sampler=dict(type='DefaultSampler', shuffle=True),
@@ -94,6 +102,7 @@ train_dataloader = dict(
     num_workers=2,
     persistent_workers=True
 )
+
 
 
 
