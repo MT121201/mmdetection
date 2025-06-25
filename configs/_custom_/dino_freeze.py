@@ -1,5 +1,5 @@
 _base_ = '../dino/dino-5scale_swin-l_8xb2-12e_coco.py'
-load_from = '/home/a3ilab01/treeai/det_tree/weights/12_34_0395.pth'
+load_from = '/home/a3ilab01/treeai/det_tree/weights/12_5_tf12_34_0404.pth'
 
 max_epochs = 36
 train_cfg = dict(
@@ -42,9 +42,12 @@ dataset12_classes = [
 metainfo = dict(classes=dataset12_classes)
 
 model = dict(
+    backbone=dict(
+        frozen_stages=4
+    ),
     bbox_head=dict(
         type='DINOHead',
-        num_classes=len(dataset12_classes),  
+        num_classes=len(dataset12_classes),
         loss_cls=dict(
             type='FocalLoss',
             use_sigmoid=True,
@@ -52,8 +55,8 @@ model = dict(
             alpha=0.25,
             loss_weight=1.0
         ),
-        loss_bbox=dict(type='L1Loss', loss_weight=7.0),  # was 5.0
-        loss_iou=dict(type='CIoULoss', loss_weight=3.0),  # was GIoULoss
+        loss_bbox=dict(type='L1Loss', loss_weight=7.0),
+        loss_iou=dict(type='CIoULoss', loss_weight=3.0),
         train_cfg=dict(
             assigner=dict(
                 type='HungarianAssigner',
@@ -101,10 +104,10 @@ datasets = [
     )
     for subdir in [
         '12_RGB_ObjDet_640_fL',
-        '5_RGB_S_320_pL',
+        # '5_RGB_S_320_pL',
         # '34_RGB_ObjDet_640_pL',
         # '34_RGB_ObjDet_640_pL_b',
-        # '0_RGB_FullyLabeled/coco'  # assuming already filtered and remapped
+        '0_RGB_FullyLabeled/coco'  # assuming already filtered and remapped
     ]
 ]
 
@@ -201,3 +204,7 @@ custom_hooks = [
         min_delta=0.001,
     )
 ]
+model_wrapper_cfg = dict(
+    type='MMDistributedDataParallel',
+    find_unused_parameters=True
+)
