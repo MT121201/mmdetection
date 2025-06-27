@@ -1,6 +1,6 @@
 _base_ = '../dino/dino-5scale_swin-l_8xb2-12e_coco.py'
 
-load_from = '/home/a3ilab01/treeai/det_tree/weights/12_0_049.pth'
+load_from = '/home/a3ilab01/treeai/mmdetection/work_dirs/dino_012/best_coco_bbox_mAP_50_epoch_13.pth'
 
 max_epochs = 36
 
@@ -9,12 +9,18 @@ train_cfg = dict(
     max_epochs=max_epochs,
     val_interval=1
 )
-
-# LR Scheduler with warmup
 param_scheduler = [
     dict(type='LinearLR', start_factor=1e-5, by_epoch=True, begin=0, end=1),
-    dict(type='MultiStepLR', begin=0, end=max_epochs, by_epoch=True, milestones=[27, 33], gamma=0.1)
+    dict(
+        type='CosineAnnealingLR',
+        T_max=max_epochs,
+        eta_min=1e-6,
+        by_epoch=True
+    )
 ]
+
+
+
 
 # Optimizer: AdamW with reduced backbone LR
 optim_wrapper = dict(
@@ -80,11 +86,18 @@ model = dict(
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations', with_bbox=True),
-    dict(type='RandomFlip', prob=0.5),
+    dict(
+        type='RandomResize',
+        scale=(640, 640),                # ✅ one base scale
+        ratio_range=(1, 1.5),          # ✅ scale jittering
+        keep_ratio=True
+    ),
     dict(type='PhotoMetricDistortion'),
-    dict(type='Resize', scale=(640, 640), keep_ratio=True), 
+    dict(type='CutOut', n_holes=2, cutout_shape=(64, 64)),
+    dict(type='RandomFlip', prob=0.5),
     dict(type='PackDetInputs')
 ]
+
 
 test_pipeline = [
     dict(type='LoadImageFromFile', backend_args=None),
@@ -110,17 +123,21 @@ datasets = [
 
 train_dataloader = dict(
     _delete_=True,
-    batch_size=2,
+    batch_size=1,
     dataset=dict(
         type='RepeatDataset',
-        times=3,
-        dataset=dict(
-            type='CocoDataset',
-            data_root=f'{data_root}12_RGB_ObjDet_640_fL/',
-            ann_file='annotations/train.json',
-            data_prefix=dict(img='images/train/'),
-            metainfo=metainfo,
-            pipeline=train_pipeline
+        times=2,
+        dataset=dict( 
+            type='ClassBalancedDataset',
+            oversample_thr=1e-2,
+            dataset=dict(
+                type='CocoDataset',
+                data_root=f'{data_root}12_RGB_ObjDet_640_fL/',
+                ann_file='annotations/train.json',
+                data_prefix=dict(img='images/train/'),
+                metainfo=metainfo,
+                pipeline=train_pipeline
+            )
         )
     ),
     sampler=dict(type='DefaultSampler', shuffle=True),
@@ -128,6 +145,7 @@ train_dataloader = dict(
     num_workers=2,
     persistent_workers=True
 )
+
 
 
 val_dataloader = dict(
@@ -179,10 +197,17 @@ custom_hooks = [
         type='EarlyStoppingHook',
         monitor='coco/bbox_mAP_50',
         rule='greater',
-        patience=5,
+        patience=8,
         min_delta=0.001
     )
 ]
+custom_hooks.append(
+    dict(
+        type='EMAHook',
+        momentum=0.0002,
+        priority='ABOVE_NORMAL'
+    )
+)
 
 model_wrapper_cfg = dict(
     type='MMDistributedDataParallel',
