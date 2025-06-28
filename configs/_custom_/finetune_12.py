@@ -10,24 +10,20 @@ train_cfg = dict(
     val_interval=1
 )
 param_scheduler = [
-    dict(type='LinearLR', start_factor=1e-5, by_epoch=True, begin=0, end=1),
+    dict(type='LinearLR', start_factor=1e-5, begin=0, end=1),
     dict(
-        type='CosineAnnealingLR',
-        T_max=max_epochs,
-        eta_min=1e-6,
+        type='MultiStepLR',
+        milestones=[24, 32],
+        gamma=0.1,
         by_epoch=True
     )
 ]
 
-
-
-
-# Optimizer: AdamW with reduced backbone LR
 optim_wrapper = dict(
     type='OptimWrapper',
     optimizer=dict(type='AdamW', lr=1e-4, weight_decay=0.05),
     paramwise_cfg=dict(
-        custom_keys={'backbone': dict(lr_mult=0.5)}
+        custom_keys={'backbone': dict(lr_mult=0.1)}
     )
 )
 
@@ -53,9 +49,9 @@ dataset12_classes = [
 metainfo = dict(classes=dataset12_classes)
 
 model = dict(
-     backbone=dict(
+    backbone=dict(
         frozen_stages=-1,
-        with_cp=False 
+        with_cp=False
     ),
     bbox_head=dict(
         type='DINOHead',
@@ -64,7 +60,7 @@ model = dict(
             type='FocalLoss',
             use_sigmoid=True,
             gamma=2.0,
-            alpha=0.25,  # fixed scalar alpha for stable competition performance
+            alpha=0.25,
             loss_weight=1.0
         ),
         loss_bbox=dict(type='L1Loss', loss_weight=5.0),
@@ -87,28 +83,47 @@ train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations', with_bbox=True),
     dict(
-        type='RandomResize',
-        scale=(640, 640),                # ✅ one base scale
-        ratio_range=(1, 1.5),          # ✅ scale jittering
-        keep_ratio=True
-    ),
+        type='RandomChoice',
+        transforms=[
+            [
+                dict(
+                    type='RandomChoiceResize',
+                    scales=[(480, 640), (512, 640), (544, 640), (576, 640),
+                            (608, 640), (640, 640)],
+                    keep_ratio=True)
+            ],
+            [
+                dict(
+                    type='RandomChoiceResize',
+                    scales=[(400, 1600), (500, 1600), (600, 1600)],
+                    keep_ratio=True),
+                dict(
+                    type='RandomCrop',
+                    crop_type='absolute_range',
+                    crop_size=(384, 600),
+                    allow_negative_crop=True),
+                dict(
+                    type='RandomChoiceResize',
+                    scales=[(480, 640), (512, 640), (544, 640), (576, 640),
+                            (608, 640), (640, 640)],
+                    keep_ratio=True)
+            ]
+        ]),
     dict(type='PhotoMetricDistortion'),
     dict(type='CutOut', n_holes=2, cutout_shape=(64, 64)),
     dict(type='RandomFlip', prob=0.5),
     dict(type='PackDetInputs')
 ]
 
-
 test_pipeline = [
     dict(type='LoadImageFromFile', backend_args=None),
-    dict(type='Resize', scale=(640, 640), keep_ratio=True), 
+    dict(type='Resize', scale=(640, 640), keep_ratio=True),
     dict(type='LoadAnnotations', with_bbox=True),
     dict(
         type='PackDetInputs',
         meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape', 'scale_factor')
     )
 ]
-
 
 datasets = [
     dict(
@@ -127,7 +142,7 @@ train_dataloader = dict(
     dataset=dict(
         type='RepeatDataset',
         times=2,
-        dataset=dict( 
+        dataset=dict(
             type='ClassBalancedDataset',
             oversample_thr=1e-2,
             dataset=dict(
@@ -145,8 +160,6 @@ train_dataloader = dict(
     num_workers=2,
     persistent_workers=True
 )
-
-
 
 val_dataloader = dict(
     _delete_=True,
@@ -193,6 +206,16 @@ default_hooks = dict(
 )
 
 custom_hooks = [
+    # dict(
+    #     type='FreezeLayersHook',
+    #     unfreeze_epoch=3,
+    #     open_cfg=dict(backbone=dict(frozen_stages=-1))
+    # ),
+    dict(
+        type='EMAHook',
+        momentum=0.0002,
+        priority='ABOVE_NORMAL'
+    ),
     dict(
         type='EarlyStoppingHook',
         monitor='coco/bbox_mAP_50',
@@ -201,13 +224,6 @@ custom_hooks = [
         min_delta=0.001
     )
 ]
-custom_hooks.append(
-    dict(
-        type='EMAHook',
-        momentum=0.0002,
-        priority='ABOVE_NORMAL'
-    )
-)
 
 model_wrapper_cfg = dict(
     type='MMDistributedDataParallel',
